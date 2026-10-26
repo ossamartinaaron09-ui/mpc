@@ -479,19 +479,13 @@ pub mod tests {
     fn generate_or_get_existing__should_load_secrets_with_legacy_responder_keys() {
         // Given
         let temp_dir = TempDir::new().unwrap();
-        let p2p_private_key = SigningKey::generate(&mut OsRng);
-        let near_signer_key = SigningKey::generate(&mut OsRng);
-        let format_key = |key: &SigningKey| {
-            format!(
-                "ed25519:{}",
-                bs58::encode(key.to_keypair_bytes()).into_string()
-            )
+        let expected_secrets = PersistentSecrets {
+            p2p_private_key: SigningKey::generate(&mut OsRng),
+            near_signer_key: SigningKey::generate(&mut OsRng),
         };
-        let legacy_secrets = serde_json::json!({
-            "p2p_private_key": format_key(&p2p_private_key),
-            "near_signer_key": format_key(&near_signer_key),
-            "near_responder_keys": [format_key(&SigningKey::generate(&mut OsRng))],
-        });
+        let mut legacy_secrets = serde_json::to_value(&expected_secrets).unwrap();
+        legacy_secrets["near_responder_keys"] =
+            serde_json::json!([legacy_secrets["near_signer_key"].clone()]);
         std::fs::write(
             secrets_file(temp_dir.path()),
             serde_json::to_vec(&legacy_secrets).unwrap(),
@@ -502,13 +496,7 @@ pub mod tests {
         let secrets = PersistentSecrets::generate_or_get_existing(temp_dir.path()).unwrap();
 
         // Then
-        assert_eq!(
-            secrets,
-            PersistentSecrets {
-                p2p_private_key,
-                near_signer_key,
-            }
-        );
+        assert_eq!(secrets, expected_secrets);
     }
 
     #[test]
